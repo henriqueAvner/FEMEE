@@ -1,0 +1,157 @@
+# ===========================================
+# FEMEE Arena Hub - CI/CD Pipeline
+# ===========================================
+# Este workflow executa:
+# - Build e testes do Backend (.NET)
+# - Build e testes do Frontend (React/Vite)
+# - Lint e verificação de tipos
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '20.x'
+
+jobs:
+  # ===========================================
+  # BACKEND - Build e Testes
+  # ===========================================
+  backend:
+    name: Backend Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: FEMEE-Backend
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache pacotes NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restaurar dependências
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Executar testes unitários
+        run: dotnet test tests/FEMEE.UnitTests/FEMEE.UnitTests.csproj --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
+
+      - name: Upload cobertura de código
+        uses: codecov/codecov-action@v4
+        if: github.event_name == 'push'
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: "**/coverage.cobertura.xml"
+          flags: backend
+          name: backend-coverage
+
+  # ===========================================
+  # FRONTEND - Build, Lint e Testes
+  # ===========================================
+  frontend:
+    name: Frontend Build & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: femee-arena-hub
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: femee-arena-hub/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar tipos TypeScript
+        run: npm run build -- --mode production 2>&1 | head -100
+
+      - name: Lint
+        run: npm run lint || true
+
+      - name: Build para produção
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.femee.com.br/api
+
+      - name: Upload artefato de build
+        uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: frontend-build
+          path: femee-arena-hub/dist
+          retention-days: 7
+
+  # ===========================================
+  # ANÁLISE DE SEGURANÇA
+  # ===========================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Verificar vulnerabilidades NuGet
+        run: |
+          cd FEMEE-Backend
+          dotnet list package --vulnerable --include-transitive 2>&1 || true
+
+  # ===========================================
+  # DEPLOY (apenas na branch main)
+  # ===========================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: staging
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Download artefato do frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./dist
+
+      - name: Deploy placeholder
+        run: |
+          echo "🚀 Deploy para staging seria executado aqui"
+          echo "Artefatos disponíveis:"
+          ls -la ./dist || echo "Nenhum artefato encontrado"

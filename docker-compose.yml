@@ -1,0 +1,97 @@
+# ========================================
+# FEMEE Arena Hub - Docker Compose
+# ========================================
+# Ambiente completo para desenvolvimento e produção
+
+version: '3.8'
+
+services:
+  # ========================================
+  # BACKEND API
+  # ========================================
+  api:
+    build:
+      context: ./FEMEE-Backend
+      dockerfile: Dockerfile
+    container_name: femee-api
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - JwtSettings__SecretKey=${JWT_SECRET_KEY}
+      - JwtSettings__Issuer=https://femee-api.com
+      - JwtSettings__Audience=femee-frontend
+      - JwtSettings__ExpirationMinutes=60
+      - Cors__AllowedOrigins__0=http://localhost:8080
+      - Cors__AllowedOrigins__1=https://femee-arena-hub.com
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - femee-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ========================================
+  # FRONTEND
+  # ========================================
+  frontend:
+    build:
+      context: ./femee-arena-hub
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:5000/api
+    container_name: femee-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    networks:
+      - femee-network
+    restart: unless-stopped
+
+  # ========================================
+  # DATABASE (SQL Server)
+  # ========================================
+  # NOTA: Se você já tem SQL Server rodando localmente na porta 1433,
+  # comente este serviço e use a connection string local
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: femee-db
+    ports:
+      - "1434:1433"  # Porta 1434 para não conflitar com SQL local
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${DB_SA_PASSWORD:-F_CLAN@GG123!}
+      - MSSQL_PID=Developer
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    networks:
+      - femee-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_SA_PASSWORD:-F_CLAN@GG123!}", "-Q", "SELECT 1", "-C"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+# ========================================
+# VOLUMES
+# ========================================
+volumes:
+  sqlserver-data:
+    driver: local
+
+# ========================================
+# NETWORKS
+# ========================================
+networks:
+  femee-network:
+    driver: bridge
