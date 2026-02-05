@@ -68,7 +68,7 @@ services:
       - "1434:1433"  # Porta 1434 para não conflitar com SQL local
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=${DB_SA_PASSWORD:-F_CLAN@GG123!}
+      - MSSQL_SA_PASSWORD=${DB_SA_PASSWORD:F_CLAN@GG123!}
       - MSSQL_PID=Developer
     volumes:
       - sqlserver-data:/var/opt/mssql
@@ -76,7 +76,7 @@ services:
       - femee-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_SA_PASSWORD:-F_CLAN@GG123!}", "-Q", "SELECT 1", "-C"]
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_SA_PASSWORD:F_CLAN@GG123!}", "-Q", "SELECT 1", "-C"]
       interval: 30s
       timeout: 10s
       retries: 5
