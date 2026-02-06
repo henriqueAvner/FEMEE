@@ -3,8 +3,6 @@
 # ========================================
 # Ambiente completo para desenvolvimento e produção
 
-version: '3.8'
-
 services:
   # ========================================
   # BACKEND API

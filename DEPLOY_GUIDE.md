@@ -214,3 +214,67 @@ dotnet ef database update --project src/FEMEE.Infrastructure --startup-project s
 - [ ] Health checks funcionando
 - [ ] Logs configurados para persistência
 - [ ] Monitoramento ativo
+- [ ] GitHub Secrets e Variables configurados (para CI/CD)
+
+---
+
+## 10. Configuração do GitHub Actions (CI/CD)
+
+Para que o pipeline de CI/CD funcione corretamente, você precisa configurar as seguintes secrets e variables no repositório GitHub.
+
+### 10.1 Acessar Configurações
+
+1. Vá para o repositório no GitHub
+2. Clique em **Settings** (Configurações)
+3. No menu lateral, vá para **Secrets and variables** → **Actions**
+
+### 10.2 Secrets (Obrigatórios para CI/CD completo)
+
+| Secret | Descrição | Exemplo |
+|--------|-----------|---------|
+| `CODECOV_TOKEN` | Token do Codecov para upload de cobertura de testes | Obtido em [codecov.io](https://codecov.io) |
+
+**Como criar:**
+1. Na aba **Secrets**, clique em **New repository secret**
+2. Nome: `CODECOV_TOKEN`
+3. Value: Cole o token obtido do Codecov
+
+### 10.3 Variables (Configurações de Build)
+
+| Variable | Descrição | Valor Sugerido |
+|----------|-----------|----------------|
+| `VITE_API_URL` | URL da API para build de produção | `https://api.femee.com.br/api` |
+
+**Como criar:**
+1. Na aba **Variables**, clique em **New repository variable**
+2. Nome: `VITE_API_URL`
+3. Value: URL da sua API em produção
+
+### 10.4 Secrets para Deploy (Opcional - se usar CD completo)
+
+Se você adicionar deploy automático ao pipeline, precisará de secrets adicionais dependendo do provedor:
+
+**Azure:**
+| Secret | Descrição |
+|--------|-----------|
+| `AZURE_CREDENTIALS` | Service Principal JSON |
+| `AZURE_SUBSCRIPTION_ID` | ID da assinatura Azure |
+
+**AWS:**
+| Secret | Descrição |
+|--------|-----------|
+| `AWS_ACCESS_KEY_ID` | Access Key ID |
+| `AWS_SECRET_ACCESS_KEY` | Secret Access Key |
+
+**Docker Hub:**
+| Secret | Descrição |
+|--------|-----------|
+| `DOCKERHUB_USERNAME` | Usuário do Docker Hub |
+| `DOCKERHUB_TOKEN` | Token de acesso |
+
+### 10.5 Verificar Pipeline
+
+Após configurar, faça um push para a branch `main` ou `develop` e verifique:
+1. Vá para a aba **Actions** no repositório
+2. Verifique se o workflow "CI/CD Pipeline" está executando
+3. Clique no workflow para ver os logs de cada job

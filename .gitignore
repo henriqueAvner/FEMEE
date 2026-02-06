@@ -1,0 +1,76 @@
+# ===========================================
+# FEMEE Arena Hub - Root .gitignore
+# ===========================================
+
+# ===========================================
+# ENVIRONMENT & SECRETS
+# ===========================================
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ===========================================
+# IDE & EDITOR
+# ===========================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.sw?
+.DS_Store
+
+# ===========================================
+# NODE.JS / FRONTEND
+# ===========================================
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===========================================
+# .NET / BACKEND
+# ===========================================
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Dd]ebug/
+[Rr]elease/
+.vs/
+*.rsuser
+*.userprefs
+TestResults/
+coverage/
+
+# ===========================================
+# DOCKER
+# ===========================================
+# Não ignorar docker-compose.yml e Dockerfiles
+# mas ignorar volumes locais se existirem
+
+# ===========================================
+# OS FILES
+# ===========================================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ===========================================
+# MISC
+# ===========================================
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
