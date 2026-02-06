@@ -1,0 +1,332 @@
+name: FEMEE Backend CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  SOLUTION_FILE: 'femee-api.sln'
+  BUILD_CONFIGURATION: 'Release'
+
+jobs:
+  # ========================================
+  # JOB 1: BUILD E TESTES
+  # ========================================
+  build-and-test:
+    name: Build, Test & Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Checkout do código
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Para análise de cobertura completa
+
+      # 2. Setup .NET
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # 3. Restaurar dependências
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      # 4. Build da solução
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      # 5. Executar testes unitários
+      - name: Run unit tests
+        run: dotnet test tests/FEMEE.UnitTests/FEMEE.UnitTests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity normal --logger "trx;LogFileName=unit-tests-results.trx"
+
+      # 6. Executar testes de integração
+      - name: Run integration tests
+        run: dotnet test tests/FEMEE.IntegrationTests/FEMEE.IntegrationTests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity normal --logger "trx;LogFileName=integration-tests-results.trx"
+        continue-on-error: true  # Não falha o pipeline se testes de integração falharem
+
+      # 7. Publicar resultados de testes
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: |
+            **/unit-tests-results.trx
+            **/integration-tests-results.trx
+          check_name: Test Results
+          comment_mode: always
+
+      # 8. Análise de cobertura de código (SonarCloud)
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+      # 9. Upload de artefatos de teste
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            **/unit-tests-results.trx
+            **/integration-tests-results.trx
+          retention-days: 30
+
+  # ========================================
+  # JOB 2: ANÁLISE DE SEGURANÇA
+  # ========================================
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # 1. Verificar vulnerabilidades de dependências
+      - name: Check for vulnerable packages
+        run: dotnet list package --vulnerable
+
+      # 2. Executar análise de segurança com Trivy
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      # 3. Upload de resultados para GitHub Security
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ========================================
+  # JOB 3: LINTING E CODE QUALITY
+  # ========================================
+  code-quality:
+    name: Code Quality & Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # 1. Restaurar dependências
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      # 2. Executar análise estática com StyleCop
+      - name: Run StyleCop analysis
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore /p:EnforceCodeStyleInBuild=true
+
+      # 3. Verificar formatação com dotnet format
+      - name: Check code formatting
+        run: dotnet format ${{ env.SOLUTION_FILE }} --verify-no-changes --verbosity diagnostic
+
+  # ========================================
+  # JOB 4: BUILD DOCKER (Apenas em main)
+  # ========================================
+  docker-build:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-and-test, security-scan, code-quality]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 1. Gerar tag da imagem
+      - name: Generate image tag
+        id: image-tag
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "tag=femee-api:${{ github.ref_name }}-${SHORT_SHA}-${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "latest=femee-api:latest" >> $GITHUB_OUTPUT
+
+      # 2. Build e push da imagem Docker
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/${{ steps.image-tag.outputs.tag }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ steps.image-tag.outputs.latest }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/femee-api:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/femee-api:buildcache,mode=max
+
+  # ========================================
+  # JOB 5: DEPLOY STAGING (Apenas em develop)
+  # ========================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [build-and-test, security-scan, code-quality]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging environment
+        run: |
+          echo "Deploying to staging environment..."
+          # Adicione seus comandos de deploy aqui
+          # Exemplo: kubectl apply -f k8s/staging/ --kubeconfig=${{ secrets.KUBECONFIG_STAGING }}
+          # Ou: docker pull ${{ secrets.DOCKER_USERNAME }}/femee-api:develop && docker run ...
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests on staging..."
+          # Adicione seus testes de smoke aqui
+
+      - name: Notify Slack - Staging Deployment
+        uses: slackapi/slack-github-action@v1.24.0
+        if: always()
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "Staging Deployment Status",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*FEMEE Backend - Staging Deployment*\nStatus: ${{ job.status }}\nBranch: develop\nCommit: ${{ github.sha }}"
+                  }
+                }
+              ]
+            }
+
+  # ========================================
+  # JOB 6: DEPLOY PRODUCTION (Apenas em main com aprovação)
+  # ========================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-and-test, security-scan, code-quality, docker-build]
+    environment:
+      name: production
+      url: https://api.femee.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to production environment
+        run: |
+          echo "Deploying to production environment..."
+          # Adicione seus comandos de deploy aqui
+          # Exemplo: kubectl apply -f k8s/production/ --kubeconfig=${{ secrets.KUBECONFIG_PRODUCTION }}
+          # Ou: docker pull ${{ secrets.DOCKER_USERNAME }}/femee-api:latest && docker run ...
+
+      - name: Run health checks
+        run: |
+          echo "Running health checks on production..."
+          # Adicione seus health checks aqui
+          # Exemplo: curl -f https://api.femee.com/health || exit 1
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
+          body: |
+            Production deployment completed successfully.
+            Commit: ${{ github.sha }}
+            Branch: ${{ github.ref }}
+
+      - name: Notify Slack - Production Deployment
+        uses: slackapi/slack-github-action@v1.24.0
+        if: always()
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "Production Deployment Status",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*FEMEE Backend - Production Deployment*\nStatus: ${{ job.status }}\nBranch: main\nCommit: ${{ github.sha }}\nVersion: v${{ github.run_number }}"
+                  }
+                }
+              ]
+            }
+
+  # ========================================
+  # JOB 7: NOTIFICAÇÕES FINAIS
+  # ========================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [build-and-test, security-scan, code-quality]
+    
+    steps:
+      - name: Determine overall status
+        id: status
+        run: |
+          if [ "${{ needs.build-and-test.result }}" == "failure" ] || [ "${{ needs.security-scan.result }}" == "failure" ] || [ "${{ needs.code-quality.result }}" == "failure" ]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+          else
+            echo "status=success" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify GitHub Status
+        run: |
+          echo "Pipeline Status: ${{ steps.status.outputs.status }}"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ CI/CD Pipeline Completed\n\n- Build: ${{ needs.build-and-test.result }}\n- Security Scan: ${{ needs.security-scan.result }}\n- Code Quality: ${{ needs.code-quality.result }}'
+            })

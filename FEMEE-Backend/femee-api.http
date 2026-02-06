@@ -1,0 +1,213 @@
+### FEMEE API - Arquivo de Testes HTTP
+### Use este arquivo para testar os endpoints da API
+### Configure a variável @token após fazer login
+
+@baseUrl = http://localhost:5299/api
+@token = SEU_TOKEN_AQUI
+
+### =============================================
+### HEALTH CHECK
+### =============================================
+
+### Health Check básico
+GET http://localhost:5299/health
+Accept: application/json
+
+### Health Check detalhado
+GET http://localhost:5299/health/detailed
+Accept: application/json
+
+### Liveness check
+GET http://localhost:5299/health/live
+Accept: application/json
+
+### Readiness check
+GET http://localhost:5299/health/ready
+Accept: application/json
+
+### =============================================
+### AUTENTICAÇÃO
+### =============================================
+
+### Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@femee.com",
+    "senha": "Admin@123"
+}
+
+### Registrar novo usuário
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+    "nome": "Novo Usuario",
+    "email": "novo@femee.com",
+    "senha": "Senha@123",
+    "tipoUsuario": 3
+}
+
+### =============================================
+### USUÁRIOS
+### =============================================
+
+### Listar todos os usuários (Admin)
+GET {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Buscar usuário por ID
+GET {{baseUrl}}/users/1
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### =============================================
+### TIMES
+### =============================================
+
+### Listar todos os times
+GET {{baseUrl}}/times
+Accept: application/json
+
+### Buscar time por ID
+GET {{baseUrl}}/times/1
+Accept: application/json
+
+### Buscar time por slug
+GET {{baseUrl}}/times/slug/meu-time
+Accept: application/json
+
+### Criar time (Admin/Capitao)
+POST {{baseUrl}}/times
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+    "nome": "Novo Time",
+    "slug": "novo-time",
+    "descricao": "Descrição do time",
+    "logoUrl": "https://example.com/logo.png",
+    "capitaoId": 1
+}
+
+### =============================================
+### CAMPEONATOS
+### =============================================
+
+### Listar todos os campeonatos
+GET {{baseUrl}}/campeonatos
+Accept: application/json
+
+### Buscar campeonato por ID
+GET {{baseUrl}}/campeonatos/1
+Accept: application/json
+
+### Campeonatos por status (0=Planejado, 1=Inscricoes, 2=EmAndamento, 3=Finalizado)
+GET {{baseUrl}}/campeonatos/status/1
+Accept: application/json
+
+### Criar campeonato (Admin)
+POST {{baseUrl}}/campeonatos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+    "titulo": "Campeonato de Verão 2026",
+    "descricao": "Grande campeonato de CS2",
+    "jogoId": 1,
+    "dataInicio": "2026-03-01T00:00:00",
+    "dataFim": "2026-03-30T00:00:00",
+    "premiacao": 10000.00,
+    "limiteParticipantes": 16
+}
+
+### =============================================
+### JOGOS
+### =============================================
+
+### Listar todos os jogos
+GET {{baseUrl}}/jogos
+Accept: application/json
+
+### Jogos ativos
+GET {{baseUrl}}/jogos/ativos
+Accept: application/json
+
+### =============================================
+### PARTIDAS
+### =============================================
+
+### Listar todas as partidas
+GET {{baseUrl}}/partidas
+Accept: application/json
+
+### Partidas por campeonato
+GET {{baseUrl}}/partidas/campeonato/1
+Accept: application/json
+
+### =============================================
+### JOGADORES
+### =============================================
+
+### Listar todos os jogadores
+GET {{baseUrl}}/jogadores
+Accept: application/json
+
+### Jogadores por time
+GET {{baseUrl}}/jogadores/time/1
+Accept: application/json
+
+### =============================================
+### NOTÍCIAS
+### =============================================
+
+### Listar todas as notícias
+GET {{baseUrl}}/noticias
+Accept: application/json
+
+### Notícias publicadas
+GET {{baseUrl}}/noticias/publicadas
+Accept: application/json
+
+### =============================================
+### PRODUTOS (LOJA)
+### =============================================
+
+### Listar todos os produtos
+GET {{baseUrl}}/produtos
+Accept: application/json
+
+### Produtos ativos
+GET {{baseUrl}}/produtos/ativos
+Accept: application/json
+
+### =============================================
+### INSCRIÇÕES EM CAMPEONATOS
+### =============================================
+
+### Listar inscrições (Admin)
+GET {{baseUrl}}/inscricoescampeonato
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Inscrições por campeonato
+GET {{baseUrl}}/inscricoescampeonato/campeonato/1
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### =============================================
+### CONQUISTAS
+### =============================================
+
+### Listar todas as conquistas
+GET {{baseUrl}}/conquistas
+Accept: application/json
+
+### Conquistas por time
+GET {{baseUrl}}/conquistas/time/1
+Accept: application/json
+
+###
+
